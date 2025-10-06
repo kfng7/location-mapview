@@ -15,6 +15,29 @@ import TileLayer from 'ol/layer/Tile.js';
 import OSM from 'ol/source/OSM.js';
 import Feature from 'ol/Feature';
 import CircleStyle from 'ol/style/Circle.js';
+import {parse} from 'csv-parse/browser/esm';
+
+fetch('data/354132200021791-20250930.csv').then((response) => {
+  const records = [];
+  const parser = parse({
+    delimiter: ',',
+    columns: true,
+  });
+  // Use the readable stream api to consume records
+  parser.on('readable', () => {
+    let record;
+    while ((record = parser.read()) !== null) {
+      records.push(record);
+    }
+  });
+  parser.on('end', () => {
+    console.log(records);
+  });
+  response.text().then((str) => {
+    parser.write(str);
+    parser.end();
+  });
+});
 
 const stylesGPS = [
   new Style({
