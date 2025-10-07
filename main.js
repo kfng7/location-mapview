@@ -2,9 +2,7 @@ import Map from 'ol/Map.js';
 import View from 'ol/View.js';
 import GeoJSON from 'ol/format/GeoJSON.js';
 import Point from 'ol/geom/Point.js';
-import Polyline from 'ol/format/Polyline.js';
 import {getVectorContext} from 'ol/render.js';
-import Circle from 'ol/geom/Circle.js';
 import VectorLayer from 'ol/layer/Vector.js';
 import VectorSource from 'ol/source/Vector.js';
 import Icon from 'ol/style/Icon.js';
@@ -17,7 +15,24 @@ import Feature from 'ol/Feature';
 import CircleStyle from 'ol/style/Circle.js';
 import {parse} from 'csv-parse/browser/esm';
 
-fetch('data/354132200021791-20250930.csv').then((response) => {
+/*****************/
+/* Load CSV Data */
+/*****************/
+async function loadCSVFile(data) {
+  const dataList = readCSVRecords(await parseCSVFIle(data));
+  const dateList = getDateList(dataList);
+}
+
+function getDateList(dataList) {
+  const set = new Set();
+  dataList.forEach((data) => {
+    set.add(data.reportTime.split(' ')[0]);
+  });
+  const dateList = Array.from(set).sort();
+  console.log(dateList);
+}
+
+async function parseCSVFIle(data) {
   return new Promise((resolve, reject) => {
     const records = [];
     const parser = parse({
@@ -34,55 +49,59 @@ fetch('data/354132200021791-20250930.csv').then((response) => {
     parser.on('end', () => {
       resolve(records);
     });
+    parser.write(data);
+    parser.end();
+  });
+}
 
-    response.text().then((str) => {
-      parser.write(str);
-      parser.end();
-    });
-  }).then((records) => {
-    console.log(records[0]);
-    const objects = [];
-    records.forEach((record) => {
-      const latLng = record['LatLng'].split(',');
-      const obj = {
-        time: record['Report Time'],
-        latitude: parseFloat(latLng[0]),
-        longitde: parseFloat(latLng[1]),
-        rad: parseInt(record['rad']),
-        type: record['Locate Type'],
-        cellTowers:[],
-        wifiAPs: []
+function readCSVRecords(records) {
+  const dataList = [];
+  records.forEach((record) => {
+    const latLng = record['LatLng'].split(',');
+    const obj = {
+      reportTime: record['Report Time'],
+      latitude: parseFloat(latLng[0]),
+      longitde: parseFloat(latLng[1]),
+      rad: parseInt(record['rad']),
+      type: record['Locate Type'],
+      cellTowers: [],
+      wifiAPs: [],
+    };
+    const cellTowerStr = record['Cell Tower'];
+    if (cellTowerStr.trim() != '') {
+      const tokens = cellTowerStr.split('_');
+      const cellTower = {
+        id: parseInt(tokens[1]),
+        areaCode: parseInt(tokens[0]),
+        strength: parseInt(record['Strength'].split(' ')[0]),
+        mcc: parseInt(tokens[2]),
+        mnc: parseInt(tokens[3]),
+        connected: true,
       };
-      const cellTowerStr = record['Cell Tower'];
-      if (cellTowerStr.trim()!='') {
-        const tokens = cellTowerStr.split('_');
-        const cellTower = {
-          id:parseInt(tokens[1]),
-          areaCode:parseInt(tokens[0]),
-          strength:parseInt(record['Strength'].split(' ')[0]),
-          mcc:parseInt(tokens[2]),
-          mnc:parseInt(tokens[3]),
-          connected:true
-        }
-        obj.cellTowers.push(cellTower);
-      }
-      const wifiStr = record['Wifi'];
-      if (wifiStr.trim()!='') {
-        const wifiStrList = wifiStr.split('|');
-        wifiStrList.forEach((wifiStr) => {
-          const tokens = wifiStr.split(',');
-          obj.wifiAPs.push({
-            macAddr:tokens[0],
-            age:new Date(obj.time).getTime()/1000,
-            channel:1,
-            noise:0,
-            strength:parseInt(tokens[1]),
-          })
+      obj.cellTowers.push(cellTower);
+    }
+    const wifiStr = record['Wifi'];
+    if (wifiStr.trim() != '') {
+      const wifiStrList = wifiStr.split('|');
+      wifiStrList.forEach((wifiStr) => {
+        const tokens = wifiStr.split(',');
+        obj.wifiAPs.push({
+          macAddr: tokens[0],
+          age: new Date(obj.time).getTime() / 1000,
+          channel: 1,
+          noise: 0,
+          strength: parseInt(tokens[1]),
         });
-      }
-      objects.push(obj);
-    });
-    console.log(objects[0]);
+      });
+    }
+    dataList.push(obj);
+  });
+  return dataList;
+}
+
+fetch('data/354132200021791-20250930.csv').then((response) => {
+  response.text().then(async (str) => {
+    await loadCSVFile(str);
   });
 });
 
