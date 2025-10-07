@@ -18,24 +18,71 @@ import CircleStyle from 'ol/style/Circle.js';
 import {parse} from 'csv-parse/browser/esm';
 
 fetch('data/354132200021791-20250930.csv').then((response) => {
-  const records = [];
-  const parser = parse({
-    delimiter: ',',
-    columns: true,
-  });
-  // Use the readable stream api to consume records
-  parser.on('readable', () => {
-    let record;
-    while ((record = parser.read()) !== null) {
-      records.push(record);
-    }
-  });
-  parser.on('end', () => {
-    console.log(records);
-  });
-  response.text().then((str) => {
-    parser.write(str);
-    parser.end();
+  return new Promise((resolve, reject) => {
+    const records = [];
+    const parser = parse({
+      delimiter: ',',
+      columns: true,
+    });
+    // Use the readable stream api to consume records
+    parser.on('readable', () => {
+      let record;
+      while ((record = parser.read()) !== null) {
+        records.push(record);
+      }
+    });
+    parser.on('end', () => {
+      resolve(records);
+    });
+
+    response.text().then((str) => {
+      parser.write(str);
+      parser.end();
+    });
+  }).then((records) => {
+    console.log(records[0]);
+    const objects = [];
+    records.forEach((record) => {
+      const latLng = record['LatLng'].split(',');
+      const obj = {
+        time: record['Report Time'],
+        latitude: parseFloat(latLng[0]),
+        longitde: parseFloat(latLng[1]),
+        rad: parseInt(record['rad']),
+        type: record['Locate Type'],
+        cellTowers:[],
+        wifiAPs: []
+      };
+      const cellTowerStr = record['Cell Tower'];
+      if (cellTowerStr.trim()!='') {
+        const tokens = cellTowerStr.split('_');
+        const cellTower = {
+          id:parseInt(tokens[1]),
+          areaCode:parseInt(tokens[0]),
+          strength:parseInt(record['Strength'].split(' ')[0]),
+          mcc:parseInt(tokens[2]),
+          mnc:parseInt(tokens[3]),
+          connected:true
+        }
+        obj.cellTowers.push(cellTower);
+      }
+      const wifiStr = record['Wifi'];
+      if (wifiStr.trim()!='') {
+        const wifiStrList = wifiStr.split('|');
+        wifiStrList.forEach((wifiStr) => {
+          const tokens = wifiStr.split(',');
+          obj.wifiAPs.push({
+            macAddr:tokens[0],
+            age:new Date(obj.time).getTime()/1000,
+            channel:1,
+            noise:0,
+            strength:parseInt(tokens[1]),
+          })
+        });
+      }
+      objects.push(obj);
+    });
+    console.log(objects[0]);
   });
 });
 
